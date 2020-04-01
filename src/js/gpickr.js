@@ -47,37 +47,24 @@ class GPickr {
         change: []
     };
 
+    _eventLib = {
+        gradientPosition: null,
+        gradientMode: null,
+        gradientStopsPreview: null,
+        gradientResult: null,
+
+    };
+
+    _parentEl = null;
+
     constructor(opt) {
         opt = Object.assign({
             stops: [
                 ['#42445a', 0],
                 ['#20b6dd', 1]
-            ]
-        }, opt);
-
-        // Build dom
-        this._root = buildGPickr(opt);
-
-        // Check if conic-gradient is supported
-        if (CSS.supports('background-image', 'conic-gradient(#fff, #fff)')) {
-            this._modes.push('conic');
-        }
-
-        opt.el = opt.el.split(/>>/g).reduce((pv, cv, ci, a) => {
-            pv = pv.querySelector(cv);
-            return ci < a.length - 1 ? pv.shadowRoot : pv;
-        }, document);
-
-        opt.el.parentElement.replaceChild(this._root.root, opt.el);
-
-        this._pickr = Pickr.create({
-            el: this._root.pickr,
+            ], 
             theme: 'nano',
-            inline: true,
-            useAsButton: true,
-            showAlways: true,
             defaultRepresentation: 'HEXA',
-
             components: {
                 palette: true,
                 preview: true,
@@ -88,17 +75,47 @@ class GPickr {
                     input: true
                 }
             }
-        }).on('change', color => {
-            if (this._focusedStop) {
-                this._focusedStop.color = color.toRGBA().toString(0);
-                this._render();
-            }
-        }).on('init', () => {
+        }, opt);
+
+        // Build dom
+        this._root = buildGPickr(opt);
+
+        // Check if conic-gradient is supported
+        if (CSS.supports('background-image', 'conic-gradient(#fff, #fff)')) {
+            this._modes.push('conic');
+        }
+
+        opt.el = typeof opt.el === 'string' ? opt.el.split(/>>/g).reduce((pv, cv, ci, a) => {
+            pv = pv.querySelector(cv);
+            return ci < a.length - 1 ? pv.shadowRoot : pv;
+        }, document) : opt.el;
+
+        this._parentEl = opt.el.parentElement;
+        this._parentEl.replaceChild(this._root.root, opt.el);
+
+        this._pickr = Pickr.create({
+            el: this._root.pickr,
+            theme: opt.theme,
+            inline: true,
+            useAsButton: true,
+            showAlways: true,
+            defaultRepresentation: opt.defaultRepresentation,
+            components: opt.components
+        });
+       this._pickr.on('init', () => {
 
             // Add pre-defined swatches
             for (const [color, loc] of opt.stops) {
                 this.addStop(color, loc, true);
             }
+            // Needed to move this so existing pre-defined swatch references
+            // in `this.stops` array are not modified during 'addStop'
+            this._pickr.on('change', color => {
+                if (this._focusedStop) {
+                    this._focusedStop.color = color.toRGBA().toString(0);
+                    this._render();
+                }
+            })
 
             this._bindEvents();
             this._emit('init', this);
@@ -109,7 +126,7 @@ class GPickr {
         const {gradient} = this._root;
 
         // Switch gradient mode
-        on(gradient.mode, ['mousedown', 'touchstart'], e => {
+        this._eventLib.gradientMode = on(gradient.mode, ['mousedown', 'touchstart'], e => {
             const nextIndex = this._modes.indexOf(this._mode) + 1;
             this._mode = this._modes[nextIndex === this._modes.length ? 0 : nextIndex];
 
@@ -121,7 +138,7 @@ class GPickr {
         });
 
         // Adding new stops
-        on(gradient.stops.preview, 'click', e => {
+        this._eventLib.gradientStopsPreview =  on(gradient.stops.preview, 'click', e => {
             this.addStop(
                 this._pickr.getColor().toRGBA().toString(),
                 this._resolveColorStopPosition(e.pageX)
@@ -129,7 +146,7 @@ class GPickr {
         });
 
         // Adjusting the angle
-        on(gradient.result, ['mousedown', 'touchstart'], e => {
+        this._eventLib.gradientResult = on(gradient.result, ['mousedown', 'touchstart'], e => {
             e.preventDefault();
 
             if (this._mode !== 'linear') {
@@ -160,7 +177,7 @@ class GPickr {
         });
 
         // Adusting circle position
-        on(gradient.pos, ['mousedown', 'touchstart'], e => {
+        this._eventLib.gradientPosition = on(gradient.pos, ['mousedown', 'touchstart'], e => {
             const pos = e.target.getAttribute('data-pos');
             const pair = this._directions.find(v => v.pos === pos);
             this.setRadialPosition((pair && pair.css) || this._direction);
@@ -250,7 +267,7 @@ class GPickr {
                     }
                 });
 
-                // Clear up after interaction endet
+                // Clear up after interaction ended
                 const s = on(window, ['mouseup', 'touchend', 'touchcancel'], () => {
                     off(...m);
                     off(...s);
@@ -444,6 +461,39 @@ class GPickr {
 
     _emit(event, ...args) {
         this._eventListener[event].forEach(cb => cb(...args, this));
+    }
+
+    _removeAllEvents() {  
+        const oldStops = [...this._stops];
+            // Remove current stops
+            for (const stop of oldStops) {
+                this.removeStop(stop);
+            }
+        Object.keys(this._eventLib).filter(key => !!this._eventLib[key]).forEach(key => {
+            off(...this._eventLib[key]);
+            this._eventLib[key] = null;
+        })
+        if (this._eventListener) {
+            let eventKeys = Object.keys(this._eventListener);            
+            if (eventKeys && eventKeys.length) {
+                eventKeys.filter(key => !!this._eventListener[key] && this._eventListener[key].length).forEach((key) => {
+                    this._eventListener[key].forEach((cb) => {
+                        this.off(key, cb);
+                    })
+                })
+            }
+        }
+    }
+
+    /**
+     * Remove picker and event listeners
+     */
+    destroyAndRemove() {
+        if (this._pickr) {
+            this._pickr.destroyAndRemove();
+        }
+        this._removeAllEvents();
+        this._parentEl.innerHTML = '';
     }
 
     /**
