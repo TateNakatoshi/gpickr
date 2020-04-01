@@ -55,6 +55,8 @@ class GPickr {
 
     };
 
+    _initializingActive = true;
+
     _parentEl = null;
 
     constructor(opt) {
@@ -111,10 +113,13 @@ class GPickr {
 
             this._bindEvents();
             this._emit('init', this);
+            this._initializingActive = false;
         }).on('change', color => {
-            if (this._focusedStop) {
-                this._focusedStop.color = color.toRGBA().toString(0);
-                this._render();
+            if (!this._initializingActive) {
+                if (this._focusedStop) {
+                    this._focusedStop.color = color.toRGBA().toString(0);
+                    this._render();
+                }
             }
         });
     }
