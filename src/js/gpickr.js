@@ -108,17 +108,14 @@ class GPickr {
             for (const [color, loc] of opt.stops) {
                 this.addStop(color, loc, true);
             }
-            // Needed to move this so existing pre-defined swatch references
-            // in `this.stops` array are not modified during 'addStop'
-            this._pickr.on('change', color => {
-                if (this._focusedStop) {
-                    this._focusedStop.color = color.toRGBA().toString(0);
-                    this._render();
-                }
-            })
 
             this._bindEvents();
             this._emit('init', this);
+        }).on('change', color => {
+            if (this._focusedStop) {
+                this._focusedStop.color = color.toRGBA().toString(0);
+                this._render();
+            }
         });
     }
 
@@ -239,17 +236,14 @@ class GPickr {
         const el = utils.createElementFromString('<div class="gpcr-marker"></div>');
         markers.appendChild(el);
 
-        this._pickr.setColor(color);
-        color = this._pickr.getColor().toRGBA().toString(0);
-
         const stop = {
             el, loc, color,
 
             listener: on(el, ['mousedown', 'touchstart'], e => {
                 e.preventDefault();
                 const markersbcr = markers.getBoundingClientRect();
-                this._pickr.setColor(stop.color);
                 this._focusedStop = stop;
+                this._pickr.setColor(stop.color);
                 let hidden = false;
 
                 // Listen for mouse / touch movements
@@ -282,6 +276,10 @@ class GPickr {
         };
 
         this._focusedStop = stop;
+        this._pickr.setColor(color);
+        stop.color = this._pickr.getColor().toRGBA().toString(0);
+
+
         this._stops.push(stop);
         this._render(silent);
         return this;
