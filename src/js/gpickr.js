@@ -294,7 +294,7 @@ class GPickr {
      * Removes a stop.
      * @param v Location, color or stop object
      */
-    removeStop(v) {
+    removeStop(v, silent) {
         const {_stops} = this;
 
         const stop = (() => {
@@ -321,7 +321,7 @@ class GPickr {
             this._focusedStop = _stops[0];
         }
 
-        this._render();
+        this._render(silent);
     }
 
     /**
@@ -466,11 +466,11 @@ class GPickr {
         this._eventListener[event].forEach(cb => cb(...args, this));
     }
 
-    _removeAllEvents() {  
+    _removeAllEvents(silent = false) {  
         const oldStops = [...this._stops];
             // Remove current stops
             for (const stop of oldStops) {
-                this.removeStop(stop);
+                this.removeStop(stop, silent);
             }
         Object.keys(this._eventLib).filter(key => !!this._eventLib[key]).forEach(key => {
             off(...this._eventLib[key]);
@@ -496,7 +496,7 @@ class GPickr {
         if (this._pickr) {
             this._pickr.destroyAndRemove();
         }
-        this._removeAllEvents();
+        this._removeAllEvents(true);
         this._parentEl.innerHTML = '';
     }
 
