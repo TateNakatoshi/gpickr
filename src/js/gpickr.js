@@ -492,6 +492,7 @@ class GPickr {
      * Remove picker and event listeners
      */
     destroyAndRemove() {
+        this._initializingActive = true;
         if (this._pickr) {
             this._pickr.destroyAndRemove();
         }
